@@ -18,10 +18,17 @@
 #include <openthread/udp.h>
 #include <openthread/cli.h>
 #include <openthread/openthread.h>
+#include "periph/gpio.h"
 #include "sched.h"
 
 #define ENABLE_DEBUG (1)
 #include "debug.h"
+
+/* LED pin configuration */
+#define TX_PIN GPIO_PIN(0, 27) // D1
+#define RX_PIN GPIO_PIN(1, 23) // D2
+#define MCU_PIN GPIO_PIN(1, 22) // D3
+#define WAN_PIN GPIO_PIN(0, 23) // D5
 
 uint16_t myRloc = 0;
 
@@ -66,10 +73,11 @@ uint32_t tmfMsgCnt = 0;
 
 uint32_t totalSerialMsgCnt = 0;
 
-#ifndef SAMPLE_INTERVAL
-#define SAMPLE_INTERVAL (30000000UL)
-#endif
-#define SAMPLE_JITTER   (15000000UL)
+//#define BLINK
+
+#ifdef BLINK
+
+#define BLINK_INTERVAL 1000000ul
 #define PAYLOAD_SIZE (89)
 
 static uint8_t source = OPENTHREAD_SOURCE;
@@ -79,18 +87,74 @@ static otUdpSocket mSocket;
 static otMessageInfo messageInfo;
 static otMessage *message = NULL;
 
-uint32_t interval_with_jitter(void)
-{
-    int32_t t = SAMPLE_INTERVAL/2;
-    t += rand() % SAMPLE_INTERVAL;
-    //t -= (SAMPLE_JITTER >> 1);
-    return (uint32_t)t;
+#endif
+
+void wdt_clear(void) {
+    volatile uint8_t* wdt_status = (volatile uint8_t*) 0x40001007;
+    volatile uint8_t* wdt_clear = (volatile uint8_t*) 0x40001008;
+
+    while (*wdt_status);
+    *wdt_clear = 0xA5;
+    while (*wdt_status);
+}
+
+void wdt_setup(void) {
+    /* Enable the bus for WDT and PAC0. */
+    volatile uint32_t* pm_apbamask = (volatile uint32_t*) 0x40000418;
+    *pm_apbamask = 0x0000007f;
+
+    /* Setup GCLK_WDT at (32 kHz) / (2 ^ (7 + 1)) = 128 Hz. */
+    GCLK->GENDIV.reg  = (GCLK_GENDIV_ID(5)  | GCLK_GENDIV_DIV(7));
+    GCLK->GENCTRL.reg = (GCLK_GENCTRL_ID(5) | GCLK_GENCTRL_GENEN | GCLK_GENCTRL_DIVSEL |
+                         GCLK_GENCTRL_RUNSTDBY | GCLK_GENCTRL_SRC_OSCULP32K);
+    while (GCLK->STATUS.bit.SYNCBUSY);
+
+    GCLK->CLKCTRL.reg = (GCLK_CLKCTRL_GEN(5) | GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_ID(GCLK_CLKCTRL_ID_WDT_Val));
+    while (GCLK->STATUS.bit.SYNCBUSY);
+
+    volatile uint8_t* wdt_status = (volatile uint8_t*) 0x40001007;
+    volatile uint8_t* wdt_config = (volatile uint8_t*) 0x40001001;
+    volatile uint8_t* wdt_ctrl = (volatile uint8_t*) 0x40001000;
+
+    while (*wdt_status);
+    /* Set up the WDT to reset after 4096 cycles (32 s), if not cleared. */
+    *wdt_config = 0x09;
+    while (*wdt_status);
+    *wdt_ctrl = 0x02;
+    while (*wdt_status);
+}
+
+void br_on_tx(void) {
+    gpio_toggle(TX_PIN);
+}
+
+void br_on_rx(void) {
+    gpio_toggle(RX_PIN);
+}
+
+void br_on_serial(void) {
+    gpio_toggle(WAN_PIN);
+    //wdt_clear();
 }
 
 int main(void)
 {
+    /* Set up the watchdog before anything else */
+    //wdt_setup();
+
+    /* Initialize gpio pins */
+    gpio_init(TX_PIN, GPIO_OUT);
+    gpio_init(RX_PIN, GPIO_OUT);
+    gpio_init(MCU_PIN, GPIO_OUT);
+    gpio_init(WAN_PIN, GPIO_OUT);
+    gpio_clear(TX_PIN);
+    gpio_clear(RX_PIN);
+    gpio_set(MCU_PIN);
+    gpio_clear(WAN_PIN);
+
     /* Run wpantund to interact with NCP */
-    DEBUG("This a test for OpenThread NCP\n");
+    DEBUG("This is a TCP-capable Border Router\n");
+#ifdef BLINK
     xtimer_usleep(10000000ul);
 
     DEBUG("\n[Main] Start UDP\n");
@@ -101,18 +165,28 @@ int main(void)
     otIp6AddressFromString("fdde:ad00:beef:0000:e9f0:45bc:c507:6f0e", &messageInfo.mPeerAddr);
 	//otIp6AddressFromString("fdde:ad00:beef:0000:c684:4ab6:ac8f:9fe5", &messageInfo.mPeerAddr);
 	//otIp6AddressFromString("2001:0470:4a71:0000:0ec4:7aff:fe73:a395", &messageInfo.mPeerAddr);
-    messageInfo.mPeerPort = 1234;
+    messageInfo.mPeerPort = 54321;
     messageInfo.mInterfaceId = 1;
 
     for (int i = 0; i < PAYLOAD_SIZE; i++) {
         buf[i] = 0x0;
     }
 
+    int toggle_id = 0;
+
     while (1) {
 		//Sleep
-        xtimer_usleep(interval_with_jitter());
+        xtimer_usleep(BLINK_INTERVAL);
 
-		//Send
+        gpio_toggle(MCU_PIN);
+
+        toggle_id++;
+        if (toggle_id == 60) {
+            toggle_id = 0;
+        } else {
+            continue;
+        }
+
         message = otUdpNewMessage(openthread_get_instance(), true);
         if (message == NULL) {
             DEBUG("error in new message");
@@ -270,5 +344,6 @@ int main(void)
             DEBUG("error in udp send\n");
         }
     }
+#endif
     return 0;
 }

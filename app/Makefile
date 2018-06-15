@@ -15,7 +15,7 @@ PROGRAMMER ?= jlink
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
 # development process:
-#CFLAGS += -DDEVELHELP -Wall
+CFLAGS += -DDEVELHELP -Wall
 
 # Change this to 0 show compiler invocation lines by default:
 QUIET ?= 1
@@ -63,6 +63,7 @@ CFLAGS += -DCPU_DUTYCYCLE_MONITOR=1
 USEMODULE += rtt_stdio
 CFLAGS    += -DRTT_STDIO_DISABLE_STDIN
 CFLAGS    += -DTHREAD_STACKSIZE_DEFAULT=2048
+CFLAGS += -DISR_STACKSIZE=1596
 
 #required for C++ compiling
 CXXEXFLAGS += -fno-rtti
