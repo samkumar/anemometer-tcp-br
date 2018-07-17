@@ -1,3 +1,6 @@
 [submodule "RIOT-OS"]
 	path = RIOT-OS
 	url = http://github.com/samkumar/RIOT-OS
+[submodule "wpantund"]
+	path = wpantund
+	url = https://github.com/samkumar/wpantund
