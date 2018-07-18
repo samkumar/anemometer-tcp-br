@@ -42,7 +42,9 @@ def check():
         print("error currentState")
         return False
 
+ipaddr = None
 def run():
+    global ipaddr
     command = "sudo wpantund -o Config:NCP:SocketPath /dev/ttyAMA0 -o Config:NCP:SocketBaud 115200"
     process = subprocess.Popen(command.split(), stderr=subprocess.PIPE)
     while True:
@@ -70,6 +72,11 @@ def run():
     process = subprocess.Popen(command.split())
     process.wait()
 
+    command = "wpanctl get IPv6:MeshLocalPrefix"
+    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
+    line = process.stdout.readline()
+    ipaddr = line.split()[-1].split(b"/")[0][1:] + b"1"
+    process.wait()
 
 def signal_handler(signal, frame):
     print("You pressed Ctrl+C! Cleaning up")
@@ -170,7 +177,8 @@ if __name__ == "__main__":
                 # Send heartbeat to MCU
                 with wan_blink_lock:
                     blink_state = wan_blink
-                s.sendto(blink_state, ("fdde:ad00:beef:0:e9f0:45bc:c507:6f0b", 12345))
+                s.sendto(blink_state, (ipaddr, 12345))
             except socket.timeout:
                 print("Timed out waiting for heartbeat")
+                break
         s.close()

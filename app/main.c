@@ -192,7 +192,7 @@ int main(void) {
 
     openthread_lock_coarse_mutex();
 
-    /* Prepare for sending UDP packets */
+    /* Prepare for sending/receiving UDP packets */
     otError error;
     {
         otSockAddr addr;
@@ -202,15 +202,24 @@ int main(void) {
         otUdpOpen(openthread_get_instance(), &mSocket, on_udp_heartbeat, NULL);
         otUdpBind(&mSocket, &addr);
     }
-	memset(&messageInfo, 0x00, sizeof(messageInfo));
-    otIp6AddressFromString("fdde:ad00:beef:0000:e9f0:45bc:c507:6f0e", &messageInfo.mPeerAddr);
+
+    /* Get my IP address. */
+    const otNetifAddress* address = otIp6GetUnicastAddresses(openthread_get_instance());
+
+    memset(&messageInfo, 0x00, sizeof(messageInfo));
+    memcpy(&messageInfo.mPeerAddr, &address->mAddress, sizeof(messageInfo.mPeerAddr));
+    //otIp6AddressFromString("fdde:ad00:beef:0000:e9f0:45bc:c507:6f0e", &messageInfo.mPeerAddr);
     messageInfo.mPeerPort = 54321;
     messageInfo.mInterfaceId = 1;
 
     {
         otNetifAddress addr;
         memset(&addr, 0x00, sizeof(addr));
-        otIp6AddressFromString("fdde:ad00:beef:0000:e9f0:45bc:c507:6f0b", &addr.mAddress);
+
+        // Copy the first eight bytes of the address
+        memcpy(&addr.mAddress.mFields.m8[0], &address->mAddress.mFields.m8[0], 8);
+        memset(&addr.mAddress.mFields.m8[8], 0x00, 7);
+        addr.mAddress.mFields.m8[15] = 1;
         addr.mPrefixLength = 128;
         addr.mValid = true;
         error = otIp6AddUnicastAddress(openthread_get_instance(), &addr);
