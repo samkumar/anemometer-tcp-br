@@ -115,6 +115,7 @@ void wdt_setup(void) {
     /* Set up the WDT to reset after 4096 cycles (32 s), if not cleared. */
     *wdt_config = 0x09;
     while (*wdt_status);
+    /* Enable the WDT. */
     *wdt_ctrl = 0x02;
     while (*wdt_status);
 }
@@ -136,7 +137,7 @@ void br_on_rx(void) {
 volatile int wan_status = FULLOFF;
 
 /* Maximum time since last heartbeat before LEDs start blinking. */
-#define MAX_HB_TIME 1000000u
+#define MAX_HB_TIME 1600000u
 volatile uint64_t last_hb = 0;
 
 void br_on_serial(void) {
@@ -171,7 +172,7 @@ void openthread_unlock_coarse_mutex(void);
 
 int main(void) {
     /* Set up the watchdog before anything else */
-    //wdt_setup();
+    wdt_setup();
 
     /* Initialize gpio pins */
     gpio_init(TX_PIN, GPIO_OUT);
@@ -235,7 +236,7 @@ int main(void) {
 
         if (xtimer_now_usec64() - last_hb < MAX_HB_TIME) {
             /* Heartbeats are OK; clear watchdog */
-            //wdt_clear();
+            wdt_clear();
 
             /* Handle MCU LED */
             gpio_set(MCU_PIN);
