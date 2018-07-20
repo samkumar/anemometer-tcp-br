@@ -85,12 +85,8 @@ static otMessageInfo messageInfo;
 static otMessage *message = NULL;
 
 void wdt_clear(void) {
-    volatile uint8_t* wdt_status = (volatile uint8_t*) 0x40001007;
     volatile uint8_t* wdt_clear = (volatile uint8_t*) 0x40001008;
-
-    while (*wdt_status);
     *wdt_clear = 0xA5;
-    while (*wdt_status);
 }
 
 void wdt_setup(void) {
