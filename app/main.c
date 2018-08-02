@@ -200,10 +200,10 @@ int main(void) {
     }
 
     /* Get my IP address. */
-    const otNetifAddress* address = otIp6GetUnicastAddresses(openthread_get_instance());
+    const otIp6Address* address = otThreadGetMeshLocalEid(openthread_get_instance());
 
     memset(&messageInfo, 0x00, sizeof(messageInfo));
-    memcpy(&messageInfo.mPeerAddr, &address->mAddress, sizeof(messageInfo.mPeerAddr));
+    memcpy(&messageInfo.mPeerAddr, address, sizeof(messageInfo.mPeerAddr));
     //otIp6AddressFromString("fdde:ad00:beef:0000:e9f0:45bc:c507:6f0e", &messageInfo.mPeerAddr);
     messageInfo.mPeerPort = 54321;
     messageInfo.mInterfaceId = 1;
@@ -213,7 +213,7 @@ int main(void) {
         memset(&addr, 0x00, sizeof(addr));
 
         // Copy the first eight bytes of the address
-        memcpy(&addr.mAddress.mFields.m8[0], &address->mAddress.mFields.m8[0], 8);
+        memcpy(&addr.mAddress.mFields.m8[0], &address->mFields.m8[0], 8);
         memset(&addr.mAddress.mFields.m8[8], 0x00, 7);
         addr.mAddress.mFields.m8[15] = 1;
         addr.mPrefixLength = 128;
@@ -295,15 +295,17 @@ int main(void) {
                 error = otMessageSetLength(message, PAYLOAD_SIZE);
                 if (error != OT_ERROR_NONE) {
                     DEBUG("error in set length\n");
-                }
-                fill_buffer();
-                otMessageWrite(message, 0, buf, PAYLOAD_SIZE);
-
-                DEBUG("\n[Main] Tx UDP packet %u\n", buf[3]*256+buf[4]);
-                error = otUdpSend(&mSocket, message, &messageInfo);
-                if (error != OT_ERROR_NONE) {
-                    DEBUG("error in udp send\n");
                     otMessageFree(message);
+                } else {
+                    fill_buffer();
+                    otMessageWrite(message, 0, buf, PAYLOAD_SIZE);
+
+                    DEBUG("\n[Main] Tx UDP packet %u\n", buf[3]*256+buf[4]);
+                    error = otUdpSend(&mSocket, message, &messageInfo);
+                    if (error != OT_ERROR_NONE) {
+                        DEBUG("error in udp send\n");
+                        otMessageFree(message);
+                    }
                 }
             }
         }
