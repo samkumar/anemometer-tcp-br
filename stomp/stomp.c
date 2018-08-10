@@ -26,9 +26,12 @@
 #define BUF_LEN 512
 char buffer[BUF_LEN];
 
+FILE* msglog;
+
 static void check_fatal_error(const char* msg) {
     assert(errno);
-    perror(msg);
+    fprintf(msglog, "%s: %s\n", msg, strerror(errno));
+    fflush(msglog);
     exit(1);
 }
 
@@ -75,6 +78,12 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    msglog = fopen("/home/ubuntu/stomp.log", "w+");
+    if (msglog == NULL) {
+        perror("Could not open log file");
+        return 2;
+    }
+
     int lsock = -1;
     int ssock = -1;
 
@@ -87,7 +96,8 @@ int main(int argc, char** argv) {
     if (argc == 3) {
         const char* serial_socket_name = argv[2];
 
-        printf("Listening on %s...\n", serial_socket_name);
+        fprintf(msglog, "Listening on %s...\n", serial_socket_name);
+        fflush(msglog);
         lsock = socket_un_create();
         addr_len = sockaddr_un_fill(&addr, serial_socket_name);
         if (bind(lsock, (struct sockaddr*) &addr, addr_len) == -1) {
@@ -97,19 +107,21 @@ int main(int argc, char** argv) {
             check_fatal_error("Could not listen on serial listen socket");
         }
     } else {
-        printf("No serial socket provided; using stdin/stdout\n");
+        fprintf(msglog, "No serial socket provided; using stdin/stdout\n");
+        fflush(msglog);
         ssock = STDIN_FILENO;
         ssock_output = STDOUT_FILENO;
     }
 
     const char* message_socket_name = argv[1];
-    printf("Connecting to %s...\n", message_socket_name);
+    fprintf(msglog, "Connecting to %s...\n", message_socket_name);
     int msock = socket_un_create();
     addr_len = sockaddr_un_fill(&addr, message_socket_name);
     if (connect(msock, (struct sockaddr*) &addr, addr_len) == -1) {
         check_fatal_error("Could not connect message socket");
     }
-    printf("Done connecting to %s.\n", message_socket_name);
+    fprintf(msglog, "Done connecting to %s.\n", message_socket_name);
+    fflush(msglog);
 
     /* State variables for reading messages. */
     int message_header_bytes_left = 4;
@@ -137,12 +149,14 @@ int main(int argc, char** argv) {
                 if (bytes_read == -1) {
                     check_fatal_error("Could not read from message socket");
                 } else if (bytes_read == 0) {
-                    printf("Message socket closed\n");
+                    fprintf(msglog, "Message socket closed\n");
+                    fflush(msglog);
                     return 0;
                 } else {
                     message_header_bytes_left -= bytes_read;
                     if (message_header_bytes_left == 0) {
                         message_body_bytes_left = be32toh(message_body_bytes_left);
+                        fprintf(msglog, "Got a message of length %u\n", (unsigned int) message_body_bytes_left);
                     }
                     if (message_body_bytes_left == 0) {
                         message_header_bytes_left = 4;
@@ -153,12 +167,13 @@ int main(int argc, char** argv) {
                 if (bytes_read == -1) {
                     check_fatal_error("Could not read from message socket");
                 } else if (bytes_read == 0) {
-                    printf("Message socket closed\n");
+                    fprintf(msglog, "Message socket closed\n");
                     return 0;
                 } else {
                     if (ssock != -1) {
                         checked_write(ssock_output, buffer, bytes_read);
                     }
+                    fprintf(msglog, "Transferred %d bytes to ssock_output\n", (int) bytes_read);
                     message_body_bytes_left -= bytes_read;
                     if (message_body_bytes_left == 0) {
                         message_header_bytes_left = 4;
@@ -188,7 +203,8 @@ int main(int argc, char** argv) {
                 }
                 ssock = -1;
                 if (lsock == -1) {
-                    printf("Stdin was closed\n");
+                    fprintf(msglog, "Stdin was closed\n");
+                    fflush(msglog);
                     return 0;
                 }
             } else {
@@ -198,6 +214,8 @@ int main(int argc, char** argv) {
                 checked_write(msock, buffer, bytes_read);
             }
         }
+
+        fflush(msglog);
     }
 
     return 0;
