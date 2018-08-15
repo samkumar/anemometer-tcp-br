@@ -45,8 +45,9 @@ def check():
 ipaddr = None
 def run():
     global ipaddr
-    command = "sudo wpantund -o Config:NCP:SocketPath /dev/ttyAMA0 -o Config:NCP:SocketBaud 115200"
-    process = subprocess.Popen(command.split(), stderr=subprocess.PIPE)
+    #command = "sudo wpantund -o Config:NCP:SocketPath /dev/ttyAMA0 -o Config:NCP:SocketBaud 230400"
+    command = ['sudo', 'wpantund', '-o', 'Config:NCP:SocketPath', 'system:/home/ubuntu/anemometer-tcp-br/stomp/stomp rethos/12', '-o', 'Config:NCP:SocketBaud', '921600']
+    process = subprocess.Popen(command, stderr=subprocess.PIPE)
     while True:
         line = process.stderr.readline()
         if b"Finished initializing NCP" in line:
@@ -145,7 +146,7 @@ def check_wan():
             wan_blink = b"\x01"
 
 
-PACKET_TOLERANCE_SECONDS = 60
+PACKET_TOLERANCE_SECONDS = 40
 
 if __name__ == "__main__":
     blink_thread = threading.Thread(target = blink_led)

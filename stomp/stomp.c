@@ -1,7 +1,31 @@
 /*
- * Copyright (C) 2018 Sam Kumar <samkumar@berkeley.edu>
- * Copyright (C) 2018 University of California, Berkeley
+ * Copyright (c) 2018 Sam Kumar
+ * Copyright (c) 2018 University of California, Berkeley
+ * All rights reserved.
  *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+/*
  * This is the Stream TO Message Protocol daemon, which receives a stream of
  * bytes in one unix socket (e.g., @stomp) and writes those bytes, chunked into
  * messages, to an output unix socket. The output unix socket could be a
@@ -26,12 +50,14 @@
 #define BUF_LEN 512
 char buffer[BUF_LEN];
 
-FILE* msglog;
+FILE* msglog = NULL;
 
 static void check_fatal_error(const char* msg) {
     assert(errno);
-    fprintf(msglog, "%s: %s\n", msg, strerror(errno));
-    fflush(msglog);
+    if (msglog != NULL) {
+        fprintf(msglog, "%s: %s\n", msg, strerror(errno));
+        fflush(msglog);
+    }
     exit(1);
 }
 
@@ -78,10 +104,13 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    msglog = fopen("/home/ubuntu/stomp.log", "w+");
-    if (msglog == NULL) {
-        perror("Could not open log file");
-        return 2;
+    char* logpath = getenv("STOMPLOG");
+    if (logpath != NULL) {
+        msglog = fopen("/home/ubuntu/stomp.log", "w+");
+        if (msglog == NULL) {
+            perror("Could not open log file");
+            return 2;
+        }
     }
 
     int lsock = -1;
@@ -96,8 +125,10 @@ int main(int argc, char** argv) {
     if (argc == 3) {
         const char* serial_socket_name = argv[2];
 
-        fprintf(msglog, "Listening on %s...\n", serial_socket_name);
-        fflush(msglog);
+        if (msglog != NULL) {
+            fprintf(msglog, "Listening on %s...\n", serial_socket_name);
+            fflush(msglog);
+        }
         lsock = socket_un_create();
         addr_len = sockaddr_un_fill(&addr, serial_socket_name);
         if (bind(lsock, (struct sockaddr*) &addr, addr_len) == -1) {
@@ -107,21 +138,27 @@ int main(int argc, char** argv) {
             check_fatal_error("Could not listen on serial listen socket");
         }
     } else {
-        fprintf(msglog, "No serial socket provided; using stdin/stdout\n");
-        fflush(msglog);
+        if (msglog != NULL) {
+            fprintf(msglog, "No serial socket provided; using stdin/stdout\n");
+            fflush(msglog);
+        }
         ssock = STDIN_FILENO;
         ssock_output = STDOUT_FILENO;
     }
 
     const char* message_socket_name = argv[1];
-    fprintf(msglog, "Connecting to %s...\n", message_socket_name);
+    if (msglog != NULL) {
+        fprintf(msglog, "Connecting to %s...\n", message_socket_name);
+    }
     int msock = socket_un_create();
     addr_len = sockaddr_un_fill(&addr, message_socket_name);
     if (connect(msock, (struct sockaddr*) &addr, addr_len) == -1) {
         check_fatal_error("Could not connect message socket");
     }
-    fprintf(msglog, "Done connecting to %s.\n", message_socket_name);
-    fflush(msglog);
+    if (msglog != NULL) {
+        fprintf(msglog, "Done connecting to %s.\n", message_socket_name);
+        fflush(msglog);
+    }
 
     /* State variables for reading messages. */
     int message_header_bytes_left = 4;
@@ -149,14 +186,18 @@ int main(int argc, char** argv) {
                 if (bytes_read == -1) {
                     check_fatal_error("Could not read from message socket");
                 } else if (bytes_read == 0) {
-                    fprintf(msglog, "Message socket closed\n");
-                    fflush(msglog);
+                    if (msglog != NULL) {
+                        fprintf(msglog, "Message socket closed\n");
+                        fflush(msglog);
+                    }
                     return 0;
                 } else {
                     message_header_bytes_left -= bytes_read;
                     if (message_header_bytes_left == 0) {
                         message_body_bytes_left = be32toh(message_body_bytes_left);
-                        fprintf(msglog, "Got a message of length %u\n", (unsigned int) message_body_bytes_left);
+                        if (msglog != NULL) {
+                            fprintf(msglog, "Got a message of length %u\n", (unsigned int) message_body_bytes_left);
+                        }
                     }
                     if (message_body_bytes_left == 0) {
                         message_header_bytes_left = 4;
@@ -167,13 +208,17 @@ int main(int argc, char** argv) {
                 if (bytes_read == -1) {
                     check_fatal_error("Could not read from message socket");
                 } else if (bytes_read == 0) {
-                    fprintf(msglog, "Message socket closed\n");
+                    if (msglog != NULL) {
+                        fprintf(msglog, "Message socket closed\n");
+                    }
                     return 0;
                 } else {
                     if (ssock != -1) {
                         checked_write(ssock_output, buffer, bytes_read);
                     }
-                    fprintf(msglog, "Transferred %d bytes to ssock_output\n", (int) bytes_read);
+                    if (msglog != NULL) {
+                        fprintf(msglog, "Transferred %d bytes to ssock_output\n", (int) bytes_read);
+                    }
                     message_body_bytes_left -= bytes_read;
                     if (message_body_bytes_left == 0) {
                         message_header_bytes_left = 4;
@@ -203,8 +248,10 @@ int main(int argc, char** argv) {
                 }
                 ssock = -1;
                 if (lsock == -1) {
-                    fprintf(msglog, "Stdin was closed\n");
-                    fflush(msglog);
+                    if (msglog != NULL) {
+                        fprintf(msglog, "Stdin was closed\n");
+                        fflush(msglog);
+                    }
                     return 0;
                 }
             } else {
@@ -215,7 +262,9 @@ int main(int argc, char** argv) {
             }
         }
 
-        fflush(msglog);
+        if (msglog != NULL) {
+            fflush(msglog);
+        }
     }
 
     return 0;
