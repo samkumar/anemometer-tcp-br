@@ -105,15 +105,15 @@ void wdt_setup(void) {
 
     volatile uint8_t* wdt_status = (volatile uint8_t*) 0x40001007;
     volatile uint8_t* wdt_config = (volatile uint8_t*) 0x40001001;
-    volatile uint8_t* wdt_ctrl = (volatile uint8_t*) 0x40001000;
+    //volatile uint8_t* wdt_ctrl = (volatile uint8_t*) 0x40001000;
 
     while (*wdt_status);
     /* Set up the WDT to reset after 4096 cycles (32 s), if not cleared. */
     *wdt_config = 0x09;
     while (*wdt_status);
     /* Enable the WDT. */
-    *wdt_ctrl = 0x02;
-    while (*wdt_status);
+    //*wdt_ctrl = 0x02;
+    //while (*wdt_status);
 }
 
 void br_on_tx(void) {
@@ -290,7 +290,7 @@ int main(void) {
             /* Send a UDP packet, as a heartbeat to the Raspberry Pi. */
             message = otUdpNewMessage(openthread_get_instance(), true);
             if (message == NULL) {
-                DEBUG("error in new message");
+                DEBUG("error in new message\n");
             } else {
                 error = otMessageSetLength(message, PAYLOAD_SIZE);
                 if (error != OT_ERROR_NONE) {
