@@ -65,7 +65,8 @@ def run():
     process = subprocess.Popen(command.split())
     process.wait()
 
-    command = "wpanctl config-gateway -d fd11:22::"
+    #command = "wpanctl config-gateway -d fd11:22::"
+    command = "wpanctl config-gateway -d 2001:470:4a71:f110::"
     process = subprocess.Popen(command.split())
     process.wait()
 

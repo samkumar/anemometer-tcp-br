@@ -47,7 +47,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-#define BUF_LEN 512
+#define BUF_LEN 200
 char buffer[BUF_LEN];
 
 FILE* msglog = NULL;
