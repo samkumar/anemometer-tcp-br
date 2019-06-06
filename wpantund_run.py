@@ -11,6 +11,10 @@ import time
 
 import RPi.GPIO as GPIO
 
+nodeid = 11
+if len(sys.argv) >= 2:
+    nodeid = int(sys.argv[1])
+
 def cleanup():
     command = "pkill wpantund"
     process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
@@ -66,7 +70,7 @@ def run():
     process.wait()
 
     #command = "wpanctl config-gateway -d fd11:22::"
-    command = "wpanctl config-gateway -d 2001:470:4a71:f110::"
+    command = "wpanctl config-gateway -d 2001:470:4a71:f{:02d}0::".format(nodeid)
     process = subprocess.Popen(command.split())
     process.wait()
 
